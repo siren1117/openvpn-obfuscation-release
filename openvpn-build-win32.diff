@@ -1,0 +1,36 @@
+--- openvpn-2.1.4.orig/install-win32/settings.in	2010-11-05 03:29:02 +0800
++++ openvpn-2.1.4/install-win32/settings.in	2012-12-28 17:44:53 +0800
+@@ -14,7 +14,7 @@
+ 
+ # Include the OpenVPN GUI exe in the installer.
+ # May be undefined.
+-!define OPENVPN_GUI_DIR "../openvpn-gui"
++!define OPENVPN_GUI_DIR "../gen-prebuilt/bin"
+ !define OPENVPN_GUI     "openvpn-gui-1.0.3.exe"
+ 
+ # Include the OpenVPN XML-based GUI exe in the installer.
+@@ -22,13 +22,13 @@
+ ;!define OPENVPN_XGUI_DIR "../ovpnxml"
+ 
+ # Prebuilt libraries.  DMALLOC is optional.
+-!define OPENSSL_DIR	  "../openssl.mingw/openssl-0.9.8o"
++!define OPENSSL_DIR	  "../openssl-0.9.8l"
+ !define LZO_DIR		  "../lzo-2.02"
+ !define PKCS11_HELPER_DIR "../pkcs11-helper"
+ ;!define DMALLOC_DIR	  "../dmalloc-5.4.2"
+ 
+ # Prebuilt TAP drivers and tapinstall
+-!define TAPBINSRC "../tap_dist"
++!define TAPBINSRC "../gen-prebuilt/driver"
+ 
+ # Directory containing python script for signing .exe files
+ !define SIGNTOOL        "../signtool"
+@@ -36,7 +36,7 @@
+ # Optional directory of prebuilt OpenVPN binary components,
+ # to be used as a source when build-from-scratch prerequisites
+ # are not met.
+-;!define GENOUT_PREBUILT  "../gen-prebuilt"
++!define GENOUT_PREBUILT  "../gen-prebuilt"
+ 
+ # -j parameter passed to make
+ !define MAKE_JOBS 1
