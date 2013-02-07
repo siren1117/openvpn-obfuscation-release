@@ -4,7 +4,7 @@ OpenVPN Obfuscation is used to encrypt OpenVPN's traffic to avoid protocol ident
 
 ## Downloads:
 
-* Windows: openvpn-2.1.4-install patched.exe - http://goo.gl/1HNFV
+* Windows: openvpn-2.1.4-install patched.exe - http://goo.gl/khwuQ
 
 * OS X: Tunnelblick.r1823.patched.app.tgz - http://goo.gl/zTpzp
 
