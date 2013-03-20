@@ -1,0 +1,263 @@
+From c19a58c253e45703801a4a78ed98d4880b6f6705 Mon Sep 17 00:00:00 2001
+From: siren1117 <siren1117@gmail.com>
+Date: Tue, 12 Mar 2013 22:39:01 +0800
+Subject: [PATCH] obfuscation
+
+---
+ configure.ac              |    2 +
+ src/openvpn/Makefile.am   |    3 +-
+ src/openvpn/forward.c     |    8 +++++
+ src/openvpn/obfuscation.c |   72 +++++++++++++++++++++++++++++++++++++++++++++
+ src/openvpn/obfuscation.h |   42 ++++++++++++++++++++++++++
+ src/openvpn/options.c     |   17 ++++++++++
+ src/openvpn/options.h     |    4 ++
+ 7 files changed, 147 insertions(+), 1 deletions(-)
+ create mode 100644 src/openvpn/obfuscation.c
+ create mode 100644 src/openvpn/obfuscation.h
+
+diff --git a/configure.ac b/configure.ac
+index ddd322c..2c62c2a 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1009,6 +1009,8 @@ if test "${enable_plugin_auth_pam}" = "yes"; then
+ 	fi
+ fi
+ 
++AC_DEFINE([USE_OBFUSCATION], [1], [use obfuscation])
++
+ CONFIGURE_DEFINES="`set | grep '^enable_.*=' ; set | grep '^with_.*='`"
+ AC_DEFINE_UNQUOTED([CONFIGURE_DEFINES], ["`echo ${CONFIGURE_DEFINES}`"], [Configuration settings])
+ 
+diff --git a/src/openvpn/Makefile.am b/src/openvpn/Makefile.am
+index 5d38628..ee28827 100644
+--- a/src/openvpn/Makefile.am
++++ b/src/openvpn/Makefile.am
+@@ -111,7 +111,8 @@ openvpn_SOURCES = \
+ 	syshead.h \
+ 	tun.c tun.h \
+ 	win32.h win32.c \
+-	cryptoapi.h cryptoapi.c
++	cryptoapi.h cryptoapi.c \
++	obfuscation.c obfuscation.h
+ openvpn_LDADD = \
+ 	$(top_builddir)/src/compat/libcompat.la \
+ 	$(SOCKETS_LIBS) \
+diff --git a/src/openvpn/forward.c b/src/openvpn/forward.c
+index 024cd58..37ebde7 100644
+--- a/src/openvpn/forward.c
++++ b/src/openvpn/forward.c
+@@ -723,6 +723,10 @@ read_incoming_link (struct context *c)
+   socks_postprocess_incoming_link (c);
+ #endif
+ 
++#ifdef USE_OBFUSCATION
++  obfuscation_process_incoming (c);
++#endif
++
+   perf_pop ();
+ }
+ 
+@@ -1127,6 +1131,10 @@ process_outgoing_link (struct context *c)
+ 	       print_link_socket_actual (c->c2.to_link_addr, &gc),
+ 	       PROTO_DUMP (&c->c2.to_link, &gc));
+ 
++#ifdef USE_OBFUSCATION
++      obfuscation_process_outgoing (c);
++#endif
++
+ 	  /* Packet send complexified by possible Socks5 usage */
+ 	  {
+ 	    struct link_socket_actual *to_addr = c->c2.to_link_addr;
+diff --git a/src/openvpn/obfuscation.c b/src/openvpn/obfuscation.c
+new file mode 100644
+index 0000000..d735e48
+--- /dev/null
++++ b/src/openvpn/obfuscation.c
+@@ -0,0 +1,72 @@
++/*
++ *  OpenVPN -- An application to securely tunnel IP networks
++ *             over a single TCP/UDP port, with support for SSL/TLS-based
++ *             session authentication and key exchange,
++ *             packet encryption, packet authentication, and
++ *             packet compression.
++ *
++ *  Copyright (C) 2002-2010 OpenVPN Technologies, Inc. <sales@openvpn.net>
++ *
++ *  This program is free software; you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License version 2
++ *  as published by the Free Software Foundation.
++ *
++ *  This program is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with this program (see the file COPYING included with this
++ *  distribution); if not, write to the Free Software Foundation, Inc.,
++ *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++ */
++
++/*
++ * 2012-12-18: Added obfuscation support
++ *   (siren1117 <siren1117@gmail.com>)
++ */
++
++#ifdef HAVE_CONFIG_H
++#include "config.h"
++#elif defined(_MSC_VER)
++#include "config-msvc.h"
++#endif
++
++#include "syshead.h"
++
++#ifdef USE_OBFUSCATION
++
++#include <openssl/rc4.h>
++#include "forward.h"
++#include "forward-inline.h"
++#include "obfuscation.h"
++
++static void
++obfuscation_process_buf (struct context *c,
++    struct buffer *buf)
++{
++  RC4_KEY key;
++  RC4_set_key(&key, strlen(c->options.obfuscation_key), (unsigned char *)c->options.obfuscation_key);
++  RC4(&key, buf->len, BPTR(buf), BPTR(buf));
++}
++
++void
++obfuscation_process_incoming (struct context *c)
++{
++  if (BLEN (&c->c2.buf) && c->options.obfuscation_key) {
++    obfuscation_process_buf(c, &c->c2.buf);
++  }
++}
++
++void
++obfuscation_process_outgoing (struct context *c)
++{
++  if (BLEN (&c->c2.to_link) && c->options.obfuscation_key) {
++    obfuscation_process_buf(c, &c->c2.to_link);
++  }
++}
++
++#else
++static void dummy(void) {}
++#endif /* USE_OBFUSCATION */
+diff --git a/src/openvpn/obfuscation.h b/src/openvpn/obfuscation.h
+new file mode 100644
+index 0000000..66eb38c
+--- /dev/null
++++ b/src/openvpn/obfuscation.h
+@@ -0,0 +1,42 @@
++/*
++ *  OpenVPN -- An application to securely tunnel IP networks
++ *             over a single TCP/UDP port, with support for SSL/TLS-based
++ *             session authentication and key exchange,
++ *             packet encryption, packet authentication, and
++ *             packet compression.
++ *
++ *  Copyright (C) 2002-2010 OpenVPN Technologies, Inc. <sales@openvpn.net>
++ *
++ *  This program is free software; you can redistribute it and/or modify
++ *  it under the terms of the GNU General Public License version 2
++ *  as published by the Free Software Foundation.
++ *
++ *  This program is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ *  GNU General Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License
++ *  along with this program (see the file COPYING included with this
++ *  distribution); if not, write to the Free Software Foundation, Inc.,
++ *  59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
++ */
++
++/*
++ * 2012-12-18: Added obfuscation support
++ *   (siren1117 <siren1117@gmail.com>)
++ */
++
++#ifndef OBFUSCATION_H
++#define OBFUSCATION_H
++
++#ifdef USE_OBFUSCATION
++
++#include "openvpn.h"
++
++void obfuscation_process_incoming_udp (struct context *c);
++
++void obfuscation_process_outgoing_udp (struct context *c);
++
++#endif
++#endif
+diff --git a/src/openvpn/options.c b/src/openvpn/options.c
+index 2eb4f91..00a01a7 100644
+--- a/src/openvpn/options.c
++++ b/src/openvpn/options.c
+@@ -91,6 +91,9 @@ const char title_string[] =
+   " [LZO]"
+ #endif
+ #endif
++#ifdef USE_OBFUSCATION
++  " [OBFUSCATION]"
++#endif
+ #if EPOLL
+   " [EPOLL]"
+ #endif
+@@ -368,6 +371,9 @@ static const char usage_message[] =
+   "--comp-noadapt  : Don't use adaptive compression when --comp-lzo\n"
+   "                  is specified.\n"
+ #endif
++#ifdef USE_OBFUSCATION
++  "--obfuscation key : Use key to obfuscate data.\n"
++#endif
+ #ifdef ENABLE_MANAGEMENT
+   "--management ip port [pass] : Enable a TCP server on ip:port to handle\n"
+   "                  management functions.  pass is a password file\n"
+@@ -1513,6 +1519,10 @@ show_settings (const struct options *o)
+   SHOW_INT (lzo);
+ #endif
+ 
++#ifdef USE_OBFUSCATION
++  SHOW_STR (obfuscation_key);
++#endif
++
+   SHOW_STR (route_script);
+   SHOW_STR (route_default_gateway);
+   SHOW_INT (route_default_metric);
+@@ -6148,6 +6158,13 @@ add_option (struct options *options,
+       options->lzo &= ~LZO_ADAPTIVE;
+     }
+ #endif /* ENABLE_LZO */
++#ifdef USE_OBFUSCATION
++  else if (streq (p[0], "obfuscation"))
++    {
++      VERIFY_PERMISSION (OPT_P_GENERAL);
++      options->obfuscation_key = p[1];
++    }
++#endif /* USE_OBFUSCATION */
+ #ifdef ENABLE_CRYPTO
+   else if (streq (p[0], "show-ciphers"))
+     {
+diff --git a/src/openvpn/options.h b/src/openvpn/options.h
+index d2ad94c..b9f7743 100644
+--- a/src/openvpn/options.h
++++ b/src/openvpn/options.h
+@@ -317,6 +317,10 @@ struct options
+   unsigned int lzo;
+ #endif
+ 
++#ifdef USE_OBFUSCATION
++  const char *obfuscation_key;
++#endif
++
+   /* buffer sizes */
+   int rcvbuf;
+   int sndbuf;
+-- 
+1.7.7.5 (Apple Git-26)
+
