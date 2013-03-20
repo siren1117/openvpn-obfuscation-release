@@ -19,3 +19,6 @@ $ sudo make install
 
 ## Usage:
 Add `obfuscation <key>` in your openvpn client and server config files.
+
+## Contact:
+siren1117@gmail.com
