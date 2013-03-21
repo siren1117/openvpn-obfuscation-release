@@ -14,6 +14,7 @@ OpenVPN Obfuscation is used to encrypt OpenVPN's traffic to avoid protocol ident
 
 * Linux: apply patch and build from source.
 <pre>
+patch -p1 &lt; 0001-obfuscation.patch
 autoreconf -i -v
 ./configure
 make
